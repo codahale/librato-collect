@@ -19,11 +19,11 @@ import (
 func main() {
 	var (
 		gaugePaths, counterPaths stringList
-		metricsURL, prefix       string
+		metricsURL, sourceName   string
 		email, token             string
 	)
 	flag.StringVar(&metricsURL, "url", "", "URL of the service's metrics")
-	flag.StringVar(&prefix, "prefix", "", "an optional source to use instead of the URL's host")
+	flag.StringVar(&sourceName, "source", "", "an optional source to use instead of the URL's host")
 	flag.Var(&gaugePaths, "gauge", "the JSON path to a gauges's value")
 	flag.Var(&counterPaths, "counter", "the JSON path to a counter's value")
 	flag.StringVar(&email, "email", "", "Librato account email")
@@ -36,16 +36,16 @@ func main() {
 		os.Exit(1)
 	}
 
-	if prefix == "" {
+	if sourceName == "" {
 		u, err := url.Parse(metricsURL)
 		if err != nil {
 			panic(err)
 		}
-		prefix = u.Host
+		sourceName = u.Host
 	}
 
 	metrics := fetchMetrics(metricsURL)
-	batch := batchMetrics(metrics, prefix, gaugePaths, counterPaths)
+	batch := batchMetrics(metrics, gaugePaths, counterPaths)
 	postBatch(batch, email, token)
 }
 
@@ -100,7 +100,7 @@ type counter struct {
 	Value int `json:"value"`
 }
 
-func batchMetrics(jq *jsonq.JsonQuery, prefix string, gauges, counters []string) batch {
+func batchMetrics(jq *jsonq.JsonQuery, gauges, counters []string) batch {
 	b := batch{
 		Gauges:   make(map[string]gauge),
 		Counters: make(map[string]counter),
@@ -111,7 +111,7 @@ func batchMetrics(jq *jsonq.JsonQuery, prefix string, gauges, counters []string)
 		if err != nil {
 			panic(err)
 		}
-		b.Gauges[prefix+"."+path] = gauge{Value: v}
+		b.Gauges[path] = gauge{Value: v}
 	}
 
 	for _, path := range counters {
@@ -119,7 +119,7 @@ func batchMetrics(jq *jsonq.JsonQuery, prefix string, gauges, counters []string)
 		if err != nil {
 			panic(err)
 		}
-		b.Counters[prefix+"."+path] = counter{Value: v}
+		b.Counters[path] = counter{Value: v}
 	}
 
 	return b
