@@ -8,10 +8,13 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
+	"runtime"
 	"strings"
+	"time"
 
 	"github.com/jmoiron/jsonq"
 )
@@ -21,6 +24,7 @@ func main() {
 		gaugePaths, counterPaths stringList
 		metricsURL, source       string
 		email, token             string
+		period                   time.Duration
 	)
 	flag.StringVar(&metricsURL, "url", "", "URL of the service's metrics")
 	flag.StringVar(&source, "source", "", "an optional source to use instead of the URL's host")
@@ -28,6 +32,7 @@ func main() {
 	flag.Var(&counterPaths, "counter", "the JSON path to a counter's value")
 	flag.StringVar(&email, "email", "", "Librato account email")
 	flag.StringVar(&token, "token", "", "Librato account token")
+	flag.DurationVar(&period, "period", 0, "send data periodically (0 for just once)")
 	flag.Parse()
 
 	if metricsURL == "" {
@@ -44,9 +49,46 @@ func main() {
 		source = u.Host
 	}
 
-	metrics := fetchMetrics(metricsURL)
+	for _ = range ticker(period) {
+		log.Printf("Collecting %s", metricsURL)
+		collect(metricsURL, source, email, token, gaugePaths, counterPaths)
+	}
+}
+
+func collect(url, source, email, token string, gaugePaths, counterPaths stringList) {
+	defer func() {
+		e := recover()
+		if e != nil {
+			log.Printf("panic: %v\n", e)
+			for skip := 1; ; skip++ {
+				pc, file, line, ok := runtime.Caller(skip)
+				if !ok {
+					break
+				}
+				if file[len(file)-1] == 'c' {
+					continue
+				}
+				f := runtime.FuncForPC(pc)
+				log.Printf("%s:%d %s()\n", file, line, f.Name())
+			}
+		}
+	}()
+
+	metrics := fetchMetrics(url)
 	batch := batchMetrics(metrics, source, gaugePaths, counterPaths)
 	postBatch(batch, email, token)
+}
+
+func ticker(period time.Duration) <-chan time.Time {
+	// if we're not doing periodic collections, return a closed channel with a
+	// single time in it
+	if period == 0 {
+		c := make(chan time.Time, 1)
+		c <- time.Now()
+		close(c)
+		return c
+	}
+	return time.Tick(period)
 }
 
 func postBatch(batch batch, email, token string) {
