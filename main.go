@@ -19,11 +19,11 @@ import (
 func main() {
 	var (
 		gaugePaths, counterPaths stringList
-		metricsURL, sourceName   string
+		metricsURL, source       string
 		email, token             string
 	)
 	flag.StringVar(&metricsURL, "url", "", "URL of the service's metrics")
-	flag.StringVar(&sourceName, "source", "", "an optional source to use instead of the URL's host")
+	flag.StringVar(&source, "source", "", "an optional source to use instead of the URL's host")
 	flag.Var(&gaugePaths, "gauge", "the JSON path to a gauges's value")
 	flag.Var(&counterPaths, "counter", "the JSON path to a counter's value")
 	flag.StringVar(&email, "email", "", "Librato account email")
@@ -36,16 +36,16 @@ func main() {
 		os.Exit(1)
 	}
 
-	if sourceName == "" {
+	if source == "" {
 		u, err := url.Parse(metricsURL)
 		if err != nil {
 			panic(err)
 		}
-		sourceName = u.Host
+		source = u.Host
 	}
 
 	metrics := fetchMetrics(metricsURL)
-	batch := batchMetrics(metrics, gaugePaths, counterPaths)
+	batch := batchMetrics(metrics, source, gaugePaths, counterPaths)
 	postBatch(batch, email, token)
 }
 
@@ -90,6 +90,7 @@ func basicAuth(u, p string) string {
 type batch struct {
 	Gauges   map[string]gauge   `json:"gauges"`
 	Counters map[string]counter `json:"counters"`
+	Source   string             `json:"source"`
 }
 
 type gauge struct {
@@ -100,10 +101,11 @@ type counter struct {
 	Value int `json:"value"`
 }
 
-func batchMetrics(jq *jsonq.JsonQuery, gauges, counters []string) batch {
+func batchMetrics(jq *jsonq.JsonQuery, source string, gauges, counters []string) batch {
 	b := batch{
 		Gauges:   make(map[string]gauge),
 		Counters: make(map[string]counter),
+		Source:   source,
 	}
 
 	for _, path := range gauges {
