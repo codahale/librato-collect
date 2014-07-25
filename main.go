@@ -158,6 +158,7 @@ func batchMetrics(jq *jsonq.JsonQuery, source string, gauges, counters []string)
 		if err != nil {
 			panic(err)
 		}
+		log.Printf("  %s=%v", path, v)
 		b.Gauges[path] = gauge{Value: v}
 	}
 
@@ -166,6 +167,7 @@ func batchMetrics(jq *jsonq.JsonQuery, source string, gauges, counters []string)
 		if err != nil {
 			panic(err)
 		}
+		log.Printf("  %s=%v", path, v)
 		b.Counters[path] = counter{Value: v}
 	}
 
