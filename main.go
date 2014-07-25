@@ -51,12 +51,11 @@ func main() {
 
 	for _ = range ticker(period) {
 		log.Printf("collecting %s", metricsURL)
-		n := collect(metricsURL, source, email, token, gaugePaths, counterPaths)
-		log.Printf("sent %d metrics", n)
+		collect(metricsURL, source, email, token, gaugePaths, counterPaths)
 	}
 }
 
-func collect(url, source, email, token string, gaugePaths, counterPaths stringList) int {
+func collect(url, source, email, token string, gaugePaths, counterPaths stringList) {
 	defer func() {
 		e := recover()
 		if e != nil {
@@ -78,8 +77,6 @@ func collect(url, source, email, token string, gaugePaths, counterPaths stringLi
 	metrics := fetchMetrics(url)
 	batch := batchMetrics(metrics, source, gaugePaths, counterPaths)
 	postBatch(batch, email, token)
-
-	return len(batch.Counters) + len(batch.Gauges)
 }
 
 func ticker(period time.Duration) <-chan time.Time {
